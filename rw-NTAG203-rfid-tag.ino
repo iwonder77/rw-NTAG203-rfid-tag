@@ -43,10 +43,6 @@ uint8_t calculateChecksum(const uint8_t* data, uint8_t length) {
   return sum;
 }
 
-bool isCardPresent() {
-  return (reader.PICC_IsNewCardPresent() && reader.PICC_ReadCardSerial());
-}
-
 // ===== READ PAGES 4-6 =====
 void readPages4Thru6() {
   // ==============================
@@ -87,8 +83,7 @@ void setup() {
   Serial.begin(115200);
   Wire.begin();  // Initialize I2C with default SDA and SCL pins.
 
-  reader.PCD_Init();                                      // Init MFRC522 board.
-  MFRC522Debug::PCD_DumpVersionToSerial(reader, Serial);  // Show details of PCD - MFRC522 Card Reader details.
+  reader.PCD_Init();  // Init MFRC522 board.
 }
 
 void loop() {
