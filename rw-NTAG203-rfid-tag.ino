@@ -25,6 +25,7 @@
 // ----- CONSTANTS -----
 const uint8_t START_PAGE = 4;  // read/write to tag starting from this page
 const uint8_t NUM_TAGS = 4;
+bool scanModeActive = false;
 
 // ----- RFID setup  -----
 const uint8_t RFID2_WS1850S_ADDR = 0x28;
@@ -40,8 +41,8 @@ struct JumperCableData {
 
 JumperCableData tags[] = {
   { "POS", 1, 0 },
-  { "NEG", 2, 0 },
-  { "POS", 3, 0 },
+  { "POS", 2, 0 },
+  { "NEG", 3, 0 },
   { "NEG", 4, 0 },
 };
 
@@ -107,6 +108,7 @@ void readStructFromTag(uint8_t startPage) {
   reader.PCD_StopCrypto1();
 }
 
+// ===== WRITE STRUCT TO TAG =====
 void writeStructToTag(const JumperCableData &data, uint8_t startPage) {
   // copy struct into byte array
   uint8_t byte_array[sizeof(data)];
@@ -147,27 +149,68 @@ void writeStructToTag(const JumperCableData &data, uint8_t startPage) {
   }
 }
 
+// ===== FUNCTION FOR WRITING MODE =====
+// prompts user to place each tag in order to write to
+void writeAllTags() {
+  for (uint8_t i = 0; i < NUM_TAGS; i++) {
+    // Calculate checksum for this tag
+    tags[i].checksum = calculateChecksum((uint8_t *)&tags[i], sizeof(tags[i]) - 1);
+
+    Serial.print("\nPlace tag for: ");
+    Serial.print(tags[i].type);
+    Serial.print(" ");
+    Serial.println(tags[i].id);
+
+    // Wait for card
+    while (!reader.PICC_IsNewCardPresent() || !reader.PICC_ReadCardSerial()) {
+      delay(50);
+    }
+
+    Serial.println("Tag detected, writing...");
+    writeStructToTag(tags[i], START_PAGE);
+
+    // halt communication with current tag
+    reader.PICC_HaltA();
+    reader.PCD_StopCrypto1();
+
+    // wait for card removal before moving to the next
+    while (reader.PICC_IsNewCardPresent()) {
+      delay(50);
+    }
+  }
+  Serial.println("\n✅ All tags written! Switching to scan mode.");
+}
+
+// ===== FUNCTION FOR SCAN MODE =====
+// will just keep reading every card it sees
+void scanMode() {
+  // if no card OR can't read card, skip everything else (return early)
+  if (!reader.PICC_IsNewCardPresent() || !reader.PICC_ReadCardSerial()) {
+    return;  // no card
+  }
+
+  Serial.println("Card detected:");
+  readStructFromTag(START_PAGE);
+
+  // Wait for removal before scanning again
+  while (reader.PICC_IsNewCardPresent()) {
+    // just wait
+  }
+}
+
+
 void setup() {
   Serial.begin(115200);
-  Wire.begin();  // Initialize I2C with default SDA and SCL pins.
-
+  Wire.begin();       // Initialize I2C with default SDA and SCL pins.
   reader.PCD_Init();  // Init MFRC522 board.
+  delay(100);
+
+  writeAllTags();
+  scanModeActive = true;
 }
 
 void loop() {
-  // if no card OR can't read card, skip everything else (return early)
-  if (!reader.PICC_IsNewCardPresent() || !reader.PICC_ReadCardSerial()) {
-    return;
+  if (scanModeActive) {
+    scanMode();
   }
-
-  // if we make it here, a card was found and read successfully
-  Serial.println("Card, detected!");
-
-  JumperCableData data;
-  strcpy(data.type, "POS");
-  data.id = 1;
-  data.checksum = calculateChecksum((uint8_t *)&data, sizeof(data) - 1);
-
-  writeStructToTag(data, START_PAGE);
-  readStructFromTag(START_PAGE);
 }
