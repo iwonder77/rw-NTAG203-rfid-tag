@@ -22,6 +22,10 @@
 #include <MFRC522DriverI2C.h>
 #include <MFRC522Debug.h>
 
+// ----- CONSTANTS -----
+const uint8_t START_PAGE = 4;  // read/write to tag starting from this page
+const uint8_t NUM_TAGS = 4;
+
 // ----- RFID setup  -----
 const uint8_t RFID2_WS1850S_ADDR = 0x28;
 
@@ -34,6 +38,13 @@ struct JumperCableData {
   uint8_t checksum;  // simple validation
 };
 
+JumperCableData tags[] = {
+  { "POS", 1, 0 },
+  { "NEG", 2, 0 },
+  { "POS", 3, 0 },
+  { "NEG", 4, 0 },
+};
+
 // ===== UTILITY FUNCTIONS =====
 uint8_t calculateChecksum(const uint8_t *data, uint8_t length) {
   uint8_t sum = 0;
@@ -43,8 +54,8 @@ uint8_t calculateChecksum(const uint8_t *data, uint8_t length) {
   return sum;
 }
 
-// ===== READ PAGES 4 and 5 =====
-void readPages4And5() {
+// ===== READ DATA (STRUCT) FROM TAG =====
+void readStructFromTag(uint8_t startPage) {
   // ==============================
   // MIFARE_Read(byte blockAddr, byte *buffer, byte *bufferSize)
   // -- byte blockAddr:   replace with page num for NTAG203 tags
@@ -61,22 +72,18 @@ void readPages4And5() {
   //
   // RETURNS: a status code if read was successful
   // ==============================
-  byte buffer[18];
+  byte buffer[18];  // must be at least 18
   byte bufferSize = sizeof(buffer);
-  uint8_t reconstruct[6];
+  uint8_t rawData[sizeof(JumperCableData)];
 
   Serial.println("Reading Pages 4 and 5 to reconstruct data");
-  if (reader.MIFARE_Read(4, buffer, &bufferSize) == MFRC522::StatusCode::STATUS_OK) {
-    for (byte i = 0; i < 6; i++) {
-      reconstruct[i] = buffer[i];
-      Serial.print(reconstruct[i], HEX);
-      Serial.print(" ");
-    }
-    Serial.println();
+  if (reader.MIFARE_Read(startPage, buffer, &bufferSize) == MFRC522::StatusCode::STATUS_OK) {
+    // only copy the first n = sizeof(rawData) bytes from buffer to rawData (MIFARE_Read returns 16 bytes, we might not use all of em)
+    memcpy(rawData, buffer, sizeof(rawData));
 
-    // cast reconstructed data into JumperCableData struct
+    // cast reconstructed/raw data into JumperCableData struct
     JumperCableData data;
-    memcpy(&data, reconstruct, sizeof(data));
+    memcpy(&data, rawData, sizeof(data));
 
     Serial.print("Type: ");
     Serial.println(data.type);
@@ -84,13 +91,23 @@ void readPages4And5() {
     Serial.println(data.id);
     Serial.print("Checksum: ");
     Serial.println(data.checksum, HEX);
+
+    // checksum validation
+    uint8_t expectedChecksum = calculateChecksum((uint8_t *)&data, sizeof(data) - 1);
+    if (expectedChecksum != data.checksum) {
+      Serial.println("❌ Checksum mismatch! Data may be corrupted.");
+    } else {
+      Serial.println("✅ Checksum valid.");
+    }
+  } else {
+    Serial.println("Failed to read from tag");
   }
 
   reader.PICC_HaltA();
   reader.PCD_StopCrypto1();
 }
 
-void writeJumperCableData(const JumperCableData &data, uint8_t startPage) {
+void writeStructToTag(const JumperCableData &data, uint8_t startPage) {
   // copy struct into byte array
   uint8_t byte_array[sizeof(data)];
   memcpy(byte_array, &data, sizeof(data));
@@ -151,6 +168,6 @@ void loop() {
   data.id = 1;
   data.checksum = calculateChecksum((uint8_t *)&data, sizeof(data) - 1);
 
-  writeJumperCableData(data, 4);
-  readPages4And5();
+  writeStructToTag(data, START_PAGE);
+  readStructFromTag(START_PAGE);
 }
