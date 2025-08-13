@@ -29,22 +29,22 @@ MFRC522DriverI2C driver{ RFID2_WS1850S_ADDR, Wire };
 MFRC522 reader{ driver };
 
 struct JumperCableData {
-  char type[8];      // either "POS" or "NEG"
+  char type[4];      // either "POS" or "NEG"
   uint8_t id;        // 1, 2, 3, or 4 (for the 4 cable ends)
   uint8_t checksum;  // simple validation
 };
 
 // ===== UTILITY FUNCTIONS =====
-uint8_t calculateChecksum(const uint8_t* data, uint8_t length) {
+uint8_t calculateChecksum(const uint8_t *data, uint8_t length) {
   uint8_t sum = 0;
   for (uint8_t i = 0; i < length; i++) {
-    sum ^= data[i];  // XDR checksum
+    sum ^= data[i];  // XOR checksum
   }
   return sum;
 }
 
-// ===== READ PAGES 4-6 =====
-void readPages4Thru6() {
+// ===== READ PAGES 4 and 5 =====
+void readPages4And5() {
   // ==============================
   // MIFARE_Read(byte blockAddr, byte *buffer, byte *bufferSize)
   // -- byte blockAddr:   replace with page num for NTAG203 tags
@@ -63,18 +63,69 @@ void readPages4Thru6() {
   // ==============================
   byte buffer[18];
   byte bufferSize = sizeof(buffer);
+  uint8_t reconstruct[6];
 
-  Serial.println("Reading Pages 4,5,6");
+  Serial.println("Reading Pages 4 and 5 to reconstruct data");
   if (reader.MIFARE_Read(4, buffer, &bufferSize) == MFRC522::StatusCode::STATUS_OK) {
-    for (byte page = 0; page < 3; page++) {  // only need pages 4,5,6
-      Serial.print("Page ");
-      Serial.print(4 + page);
-      Serial.print(": ");
-      for (byte j = 0; j < 4; j++) {
-        Serial.print(buffer[page * 4 + j], HEX);
-        Serial.print(" ");
+    for (byte i = 0; i < 6; i++) {
+      reconstruct[i] = buffer[i];
+      Serial.print(reconstruct[i], HEX);
+      Serial.print(" ");
+    }
+    Serial.println();
+
+    // cast reconstructed data into JumperCableData struct
+    JumperCableData data;
+    memcpy(&data, reconstruct, sizeof(data));
+
+    Serial.print("Type: ");
+    Serial.println(data.type);
+    Serial.print("ID: ");
+    Serial.println(data.id);
+    Serial.print("Checksum: ");
+    Serial.println(data.checksum, HEX);
+  }
+
+  reader.PICC_HaltA();
+  reader.PCD_StopCrypto1();
+}
+
+void writeJumperCableData(const JumperCableData &data, uint8_t startPage) {
+  // copy struct into byte array
+  uint8_t byte_array[sizeof(data)];
+  memcpy(byte_array, &data, sizeof(data));
+
+  // calculate how many pages we will need to write to
+  uint8_t totalPages = (sizeof(data) + 3) / 4;  // round up to nearest 4 bytes
+
+  for (uint8_t i = 0; i < totalPages; i++) {
+    uint8_t pageData[4] = { 0x00, 0x00, 0x00, 0x00 };
+
+    // copy 4 bytes from struct into pageData
+    for (uint8_t j = 0; j < 4; j++) {
+      uint8_t byte_array_index = (i * 4) + j;
+      if (byte_array_index < sizeof(data)) {
+        pageData[j] = byte_array[byte_array_index];
       }
-      Serial.println();
+    }
+
+    // write the 4 bytes to the tag
+    // ==============================
+    // MIFARE_Ultralight_Write(byte page, byte *buffer, byte bufferSize)
+    // writes a 4 byte page to the active MIFARE Ultralight PICC
+    // -- byte page:        the page (2-15) to write to
+    // -- byte *buffer:     the 4 bytes to write to the PICC
+    // -- byte *bufferSize: size of the buffer, must be at least 4 bytes
+    //
+    // RETURNS: a status code if read was successful
+    // ==============================
+    MFRC522::StatusCode status = reader.MIFARE_Ultralight_Write(startPage + i, pageData, sizeof(pageData));
+    if (status != MFRC522::StatusCode::STATUS_OK) {
+      Serial.print("Failed to write page ");
+      Serial.println(startPage + i);
+    } else {
+      Serial.print("Successfully wrote to page ");
+      Serial.println(startPage + i);
     }
   }
 }
@@ -95,8 +146,11 @@ void loop() {
   // if we make it here, a card was found and read successfully
   Serial.println("Card, detected!");
 
-  readPages4Thru6();
+  JumperCableData data;
+  strcpy(data.type, "POS");
+  data.id = 1;
+  data.checksum = calculateChecksum((uint8_t *)&data, sizeof(data) - 1);
 
-  // more detailed output to serial monitor, use:
-  MFRC522Debug::PICC_DumpToSerial(reader, Serial, &(reader.uid));
+  writeJumperCableData(data, 4);
+  readPages4And5();
 }
