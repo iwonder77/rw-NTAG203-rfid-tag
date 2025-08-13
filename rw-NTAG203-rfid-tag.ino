@@ -47,7 +47,41 @@ bool isCardPresent() {
   return (reader.PICC_IsNewCardPresent() && reader.PICC_ReadCardSerial());
 }
 
-// ===== READ
+// ===== READ PAGES 4-6 =====
+void readPages4Thru6() {
+  // ==============================
+  // MIFARE_Read(byte blockAddr, byte *buffer, byte *bufferSize)
+  // -- byte blockAddr:   replace with page num for NTAG203 tags
+  // -- byte *buffer:     a buffer is a temporary array in RAM holding the bytes we read from the tag,
+  //                      pass in a pointer to the first element of this array, so the function can fill
+  //                      it with the tag's data
+  // -- byte *bufferSize: size of the buffer, passed as reference to allow func to update it and tell us
+  //                      how many bites it wrote into our buffer array
+  //
+  // NOTE: function returns 16 bytes (+ 2 bytes CRC_A) from the active PICC
+  // -  active PICC means tag must be in the selected state (awake and communicating)
+  // -  since function reads 16 bytes, and pages on our NTAG203 tags have 4 bytes each, this will read
+  // -    4 pages on one go and store the information in our buffer (make it at least 18 though for the CRC bytes)
+  //
+  // RETURNS: a status code if read was successful
+  // ==============================
+  byte buffer[18];
+  byte bufferSize = sizeof(buffer);
+
+  Serial.println("Reading Pages 4,5,6");
+  if (reader.MIFARE_Read(4, buffer, &bufferSize) == MFRC522::StatusCode::STATUS_OK) {
+    for (byte page = 0; page < 3; page++) {  // only need pages 4,5,6
+      Serial.print("Page ");
+      Serial.print(4 + page);
+      Serial.print(": ");
+      for (byte j = 0; j < 4; j++) {
+        Serial.print(buffer[page * 4 + j], HEX);
+        Serial.print(" ");
+      }
+      Serial.println();
+    }
+  }
+}
 
 void setup() {
   Serial.begin(115200);
@@ -65,6 +99,8 @@ void loop() {
 
   // if we make it here, a card was found and read successfully
   Serial.println("Card, detected!");
+
+  readPages4Thru6();
 
   // more detailed output to serial monitor, use:
   MFRC522Debug::PICC_DumpToSerial(reader, Serial, &(reader.uid));
