@@ -23,7 +23,7 @@
 #include <MFRC522Debug.h>
 
 // ----- CONSTANTS -----
-const uint8_t START_PAGE = 4;  // read/write to tag starting from this page
+const uint8_t TAG_START_PAGE = 4;  // read/write to tag starting from this page
 const uint8_t NUM_TAGS = 4;
 bool scanModeActive = false;
 
@@ -167,7 +167,7 @@ void writeAllTags() {
     }
 
     Serial.println("Tag detected, writing...");
-    writeStructToTag(tags[i], START_PAGE);
+    writeStructToTag(tags[i], TAG_START_PAGE);
 
     // halt communication with current tag
     reader.PICC_HaltA();
@@ -175,7 +175,7 @@ void writeAllTags() {
 
     // wait for card removal before moving to the next
     while (reader.PICC_IsNewCardPresent()) {
-      delay(50);
+      delay(5000);
     }
   }
   Serial.println("\n✅ All tags written! Switching to scan mode.");
@@ -190,7 +190,7 @@ void scanMode() {
   }
 
   Serial.println("Card detected:");
-  readStructFromTag(START_PAGE);
+  readStructFromTag(TAG_START_PAGE);
 
   // Wait for removal before scanning again
   while (reader.PICC_IsNewCardPresent()) {
