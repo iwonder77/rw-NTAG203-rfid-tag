@@ -6,13 +6,9 @@ The exhibit teaches guests how to jump-start a car. Each physical jumper cable e
 
 Exhibit firmware repo: [jumper-cable-rfid-interactive](https://github.com/iwonder77/jumper-cable-rfid-interactive)
 
----
-
 ## Overview
 
 The sketch runs on an **Adafruit Trinket M0** connected to an **M5Stack RFID2 reader** over I2C. On power-up it presents a serial menu. The technician selects which cable end to program (POS-1, POS-2, NEG-3, or NEG-4), places a blank NTAG213 tag on the reader, and the sketch writes a 6-byte struct to the tag's user memory, then reads it back to verify byte-for-byte before returning to the menu. A separate scan mode lets you inspect any already-programmed tag.
-
----
 
 ## Hardware List
 
@@ -31,8 +27,6 @@ The sketch runs on an **Adafruit Trinket M0** connected to an **M5Stack RFID2 re
 | VCC             | 3V             |
 | SDA             | 0 (SDA)        |
 | SCL             | 2 (SCL)        |
-
----
 
 ## Software Architecture
 
@@ -74,8 +68,6 @@ Write modes block until a tag is detected, write the struct, verify, then return
 - `MIFARE_Read` always returns 16 data bytes + 2 CRC bytes — the read buffer must be **at least 18 bytes**.
 - `MIFARE_Ultralight_Write` writes exactly **4 bytes per call** (one page). The 6-byte struct requires two write calls (pages 4 and 5).
 
----
-
 ## Step-by-Step: Programming Tags
 
 1. Wire the RFID2 module to the Trinket M0 per the table above.
@@ -101,8 +93,6 @@ Write modes block until a tag is detected, write the struct, verify, then return
 12. Use option `5` (Scan) to confirm any tag reads back correctly. Send `m` to exit scan mode.
 
 > **Tag programming order:** The exhibit has 4 jumper cable ends — 2 positive (red, IDs 1 & 2) and 2 negative (black, IDs 3 & 4). Program one tag per cable end and attach it before reinstalling into the exhibit.
-
----
 
 ## Troubleshooting
 
