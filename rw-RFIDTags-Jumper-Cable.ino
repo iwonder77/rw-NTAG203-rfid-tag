@@ -6,7 +6,7 @@
  * Author: Isai Sanchez
  * Date: 8-13-25
  * Hardware:
- *  - MCU: Arduino Nano
+ *  - MCU: Adafruit Trinket M0
  *  - RFID module: M5Stack RFID2 reader
  *  - NTAG213: Adafruit NTAG213 tags
  * Libraries:
