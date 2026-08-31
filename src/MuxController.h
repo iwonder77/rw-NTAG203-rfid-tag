@@ -1,0 +1,30 @@
+#pragma once
+/**
+ * MuxController.h
+ *
+ * Centralized logic for switching channels on I2C mux
+ */
+#include <Arduino.h>
+
+#include "Config.h"
+#include "Wire.h"
+
+class MuxController {
+public:
+  static void selectChannel(uint8_t mux_address, uint8_t channel) {
+    if (channel > 7)
+      return;
+    Wire.beginTransmission(mux_address);
+    Wire.write(1 << channel);
+    Wire.endTransmission();
+
+    delay(config::CHANNEL_SWITCH_SETTLE_MS);
+  }
+  static void disableChannel(uint8_t mux_address) {
+    Wire.beginTransmission(mux_address);
+    Wire.write(0);
+    Wire.endTransmission();
+
+    delay(config::CHANNEL_SWITCH_SETTLE_MS);
+  }
+};
